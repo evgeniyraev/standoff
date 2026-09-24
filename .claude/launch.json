@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "renderer", "runtimeExecutable": "npx", "runtimeArgs": ["vite"], "port": 5173 },
+    { "name": "admin", "runtimeExecutable": "npx", "runtimeArgs": ["vite", "--config", "vite.admin.config.js"], "port": 5174 }
+  ]
+}

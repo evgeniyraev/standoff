@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ws:" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Standoff</title>
+  </head>
+  <body>
+    <main id="stage" aria-live="polite"></main>
+    <button id="hidden-button" aria-label="Operator" tabindex="-1"></button>
+    <span id="ble-dot" title="Buzzers"></span>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

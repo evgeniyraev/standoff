@@ -1,0 +1,63 @@
+# Builds the Windows installer and publishes it as a GitHub Release, which is
+# also the auto-update feed read by electron-updater on every kiosk.
+#
+# Trigger: push a tag like v1.2.3 (the version is taken from the tag), or run
+# manually from the Actions tab with a version number.
+#
+# Repository settings used (Settings → Secrets and variables → Actions):
+#   vars.STANDOFF_ROOM    admin room the kiosk joins (long, hard to guess)
+#   secrets.STANDOFF_PIN  optional PIN (Trystero password) for that room
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.3)'
+        required: true
+
+permissions:
+  contents: write # create the release and upload assets
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Set version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          [ -z "$VERSION" ] && VERSION="${GITHUB_REF_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Bake room / PIN into the build
+        run: node scripts/write-build-info.js
+        env:
+          STANDOFF_ROOM: ${{ vars.STANDOFF_ROOM }}
+          STANDOFF_PIN: ${{ secrets.STANDOFF_PIN }}
+
+      - run: npm run build:renderer
+
+      - name: Build installer and publish release
+        shell: bash
+        run: >
+          npx electron-builder --win --publish always
+          -c.publish.owner=${{ github.repository_owner }}
+          -c.publish.repo=${{ github.event.repository.name }}
+        env:
+          # Built-in token; no personal token needed. Manual runs create tag v$VERSION.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

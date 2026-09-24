@@ -1,0 +1,41 @@
+# Windows installer + auto-update feed. See docs/ARCHITECTURE.md → "Build & release".
+appId: com.standoff.quiz
+productName: Standoff
+copyright: Standoff
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - package.json
+  - build-info.json
+  - src/main/**
+  - src/shared/*.js # main imports defaults/protocol/questions; the UI is bundled by Vite
+  - dist/renderer/**
+  - "!**/*.map"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: ${productName}-Setup-${version}.${ext}
+  # Code signing: see docs/ARCHITECTURE.md → "Code signing" (azureSignOptions or certificateFile).
+
+nsis:
+  oneClick: true # silent-ish install, no wizard
+  perMachine: false # per-user → updates install without UAC prompts
+  runAfterFinish: true # "autostart when installed"
+  deleteAppDataOnUninstall: false # keep questions/settings across reinstalls
+  shortcutName: Standoff
+
+# macOS is not a target, but keeps local test builds from crashing on Bluetooth access.
+mac:
+  target: dir
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: Standoff connects to the Bluetooth quiz buzzers.
+
+publish:
+  provider: github
+  releaseType: release # publish immediately; electron-updater ignores drafts

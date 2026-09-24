@@ -1,0 +1,564 @@
+/* Game window. All sizes are design pixels on a 1080×1920 portrait canvas that
+   is scaled to the actual display (see fitStage in main.js). Colours come from
+   the theme as CSS custom properties set on :root. */
+
+:root {
+  --navy: #16205b;
+  --blue: #0385ff;
+  --sky: #cbe5fe;
+  --dark-navy: #0c112f;
+  --green: #61d37e;
+  --red: #d5225c;
+  --yellow: #f8cd4b;
+  --purple: #895cf5;
+  --cyan: #5ad8ff;
+  --line: rgba(203, 229, 254, 0.28);
+  --scale: 0.5;
+  font-family: 'Clash Display', system-ui, sans-serif;
+  color: #fff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #02041a;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#stage {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1080px;
+  height: 1920px;
+  transform: translate(-50%, -50%) scale(var(--scale));
+  overflow: hidden;
+  background: var(--dark-navy) center / cover no-repeat;
+}
+#stage[data-bg='1'] {
+  background-image: linear-gradient(180deg, rgba(2, 6, 30, 0.1), rgba(2, 6, 30, 0.35)), url('../../assets/bg-1.jpeg');
+}
+#stage[data-bg='2'] {
+  background-image: linear-gradient(180deg, rgba(2, 6, 30, 0.1), rgba(2, 6, 30, 0.35)), url('../../assets/bg-2.jpeg');
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  animation: fade-in 280ms ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.content {
+  padding: 0 64px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.kicker {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  color: var(--sky);
+}
+
+.cta {
+  width: 100%;
+  height: 150px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
+  background: linear-gradient(120deg, rgba(90, 110, 190, 0.55), rgba(30, 30, 80, 0.55) 55%, rgba(3, 133, 255, 0.45));
+  backdrop-filter: blur(8px);
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 120ms;
+}
+.cta:active {
+  transform: scale(0.98);
+}
+
+/* ---- brand header (start, countdown, win) --------------------------------- */
+
+.brand {
+  height: 310px;
+  flex: none;
+  padding: 0 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(2, 6, 30, 0.85), rgba(8, 18, 70, 0.5));
+}
+.logo {
+  width: 330px;
+  height: 132px;
+  object-fit: contain;
+  object-position: left center;
+}
+.eyebrow {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-align: right;
+  max-width: 560px;
+}
+
+/* ---- start ----------------------------------------------------------------- */
+
+.start .kicker {
+  margin-top: 80px;
+}
+.start .title {
+  margin: 8px 0 60px;
+  font-size: 150px;
+  line-height: 0.92;
+  font-weight: 700;
+}
+.rules {
+  list-style: none;
+  margin: 0 0 56px;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+}
+.rules li {
+  display: flex;
+  align-items: center;
+  gap: 38px;
+  min-height: 128px;
+  border-top: 1px solid var(--line);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.bullet {
+  flex: none;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: var(--c);
+  color: var(--dark-navy);
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+/* ---- countdown ------------------------------------------------------------- */
+
+.get-ready {
+  margin-top: 60px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'get count' 'ready count';
+  align-items: center;
+  font-weight: 700;
+  line-height: 0.9;
+}
+.get {
+  grid-area: get;
+  font-size: 220px;
+}
+.ready {
+  grid-area: ready;
+  font-size: 170px;
+  margin-top: 100px;
+}
+.count {
+  grid-area: count;
+  font-size: 380px;
+  color: var(--cyan);
+  text-shadow: 0 0 60px rgba(90, 216, 255, 0.5);
+  animation: pop 1s ease-out infinite;
+}
+@keyframes pop {
+  0% {
+    transform: scale(1.15);
+    opacity: 0.4;
+  }
+  25% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.subtle {
+  margin-top: 110px;
+  font-size: 30px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---- scoreboard (question + result) ----------------------------------------- */
+
+.board {
+  height: 268px;
+  flex: none;
+  padding: 0 46px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(2, 6, 30, 0.85), rgba(8, 18, 70, 0.5));
+}
+.player {
+  flex: 1;
+  height: 116px;
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(12, 17, 60, 0.6);
+  border-top: 3px solid rgba(255, 255, 255, 0.35);
+  transition: box-shadow 200ms, border-color 200ms;
+}
+.player.active {
+  border-top-color: var(--blue);
+  box-shadow: 0 0 60px rgba(3, 133, 255, 0.55);
+}
+.player-name {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+}
+.dots {
+  display: flex;
+  gap: 12px;
+}
+.dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+}
+.dot.on {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+/* Feedback #1: number is centred inside the ring. */
+.ring {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  flex: none;
+}
+.ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ring-track {
+  fill: #050a2e;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 7;
+}
+.ring-progress {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 100ms linear;
+}
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 84px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ---- question -------------------------------------------------------------- */
+
+.question {
+  margin-top: 56px;
+  display: flex;
+  gap: 44px;
+  min-height: 250px;
+}
+.qnum {
+  flex: none;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+}
+.qnum-big {
+  font-size: 156px;
+  font-weight: 700;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+  color: var(--accent);
+}
+.qnum-sub {
+  margin-top: 26px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+.qtext {
+  margin: 8px 0 0;
+  font-size: 50px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* Feedback #3: equal 2×2 grid, every box wide enough for its text. */
+.answers {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.answer {
+  height: 300px;
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(70, 90, 170, 0.5), rgba(20, 30, 90, 0.35));
+  backdrop-filter: blur(6px);
+  transition: transform 100ms, opacity 200ms, border-color 200ms, background 200ms;
+}
+.answer:disabled {
+  cursor: default;
+}
+.letter {
+  font-size: 70px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent);
+}
+.answer-text {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.answers.interactive .answer:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.answers.interactive .answer:not(:disabled):active {
+  transform: scale(0.97);
+}
+.answer.wrong {
+  opacity: 0.35;
+  border-color: var(--red);
+}
+.answer.wrong .answer-text {
+  text-decoration: line-through;
+}
+.answer.correct {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 25%, transparent);
+}
+
+.hint {
+  margin-top: 48px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  color: var(--sky);
+}
+.answering .hint {
+  color: #fff;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ---- result ---------------------------------------------------------------- */
+
+.result .content {
+  justify-content: center;
+  padding-bottom: 260px;
+}
+.result-big {
+  font-size: 400px;
+  font-weight: 700;
+  line-height: 0.8;
+  color: var(--accent);
+  letter-spacing: -0.04em;
+}
+.result .kicker {
+  margin-top: 70px;
+}
+.result-title {
+  margin: 6px 0 0;
+  font-size: 140px;
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--accent);
+}
+.result-line {
+  margin: 44px 0 0;
+  font-size: 40px;
+}
+.reveal {
+  margin: 22px 0 0;
+  font-size: 38px;
+  color: var(--sky);
+}
+.reveal b {
+  color: #fff;
+}
+.result-next {
+  margin: 14px 0 0;
+  font-size: 40px;
+  font-weight: 600;
+}
+
+/* ---- win ------------------------------------------------------------------- */
+
+/* Feedback #2: kicker, PLAYER and N WINS! are separate rows → no overlap. */
+.win .kicker {
+  margin-top: 80px;
+}
+.winner {
+  position: relative;
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+  line-height: 0.9;
+}
+.winner-player {
+  font-size: 220px;
+  color: #d3d9f0;
+}
+.winner-wins {
+  margin-top: 20px;
+  font-size: 160px;
+  word-spacing: 0.12em;
+}
+.star {
+  position: absolute;
+  right: 10px;
+  bottom: -20px;
+  width: 210px;
+  filter: drop-shadow(0 0 30px rgba(248, 205, 75, 0.4));
+}
+.tagline {
+  margin: 60px 0 70px;
+  font-size: 40px;
+  line-height: 1.4;
+}
+.final-scores {
+  margin-bottom: 28px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(22, 32, 91, 0.85);
+}
+.final-scores div {
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 30px;
+  letter-spacing: 0.08em;
+}
+.final-scores div + div {
+  border-left: 2px solid var(--line);
+}
+.final-scores b {
+  font-size: 110px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* ---- operator overlays ----------------------------------------------------- */
+
+#hidden-button {
+  position: fixed;
+  z-index: 100;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  --hold: 0;
+}
+#hidden-button[data-corner='top-left'] {
+  top: 0;
+  left: 0;
+}
+#hidden-button[data-corner='top-right'] {
+  top: 0;
+  right: 0;
+}
+#hidden-button[data-corner='bottom-left'] {
+  bottom: 0;
+  left: 0;
+}
+#hidden-button[data-corner='bottom-right'] {
+  bottom: 0;
+  right: 0;
+}
+#hidden-button.holding {
+  opacity: 1;
+  border-radius: 50%;
+  background: conic-gradient(rgba(255, 255, 255, 0.35) calc(var(--hold) * 360deg), transparent 0);
+  mask: radial-gradient(circle, transparent 55%, #000 56%);
+}
+
+#ble-dot {
+  position: fixed;
+  left: 10px;
+  bottom: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  z-index: 50;
+  pointer-events: none;
+  background: transparent;
+}
+#ble-dot[data-state='scanning'],
+#ble-dot[data-state='connecting'],
+#ble-dot[data-state='reconnecting'] {
+  background: var(--yellow);
+}
+#ble-dot[data-state='not-found'],
+#ble-dot[data-state='error'],
+#ble-dot[data-state='unsupported'] {
+  background: var(--red);
+}

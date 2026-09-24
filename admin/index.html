@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Standoff Admin</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <div id="connect" class="ad-connect">
+      <h1>Standoff admin</h1>
+      <p class="ad-muted">Join the kiosk's room to edit its settings live.</p>
+      <form id="join-form" class="ad-form" autocomplete="off">
+        <label>Room<input id="room" required minlength="8" spellcheck="false" /></label>
+        <label>PIN<input id="pin" type="password" inputmode="numeric" placeholder="optional" /></label>
+        <div class="ad-row">
+          <button type="submit" class="ad-btn primary">Join room</button>
+          <button type="button" id="generate" class="ad-btn">Generate new room</button>
+        </div>
+      </form>
+      <div id="generated" class="ad-note" hidden></div>
+    </div>
+
+    <div id="session" class="ad-session" hidden>
+      <div class="ad-topbar">
+        <span id="session-state" class="ad-state">Connecting…</span>
+        <select id="kiosk-select" hidden></select>
+        <button id="leave" class="ad-btn small">Leave</button>
+      </div>
+      <div id="settings" class="ad-settings"></div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+App(
+    appid="quiz_buzzer",
+    name="Quiz Buzzer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="quiz_buzzer_app",
+    stack_size=4 * 1024,
+    fap_category="Bluetooth",
+    fap_description="BLE central controller for the quiz-buzzer device (NUS): "
+    "scan by service UUID, Just Works pairing, START/PING commands, BTN events.",
+    fap_author="Evgeniy Raev",
+    fap_version="0.1",
+    fap_icon="quiz_buzzer.png",
+    sources=[
+        "quiz_buzzer_app.c",
+        "helpers/nus_protocol.c",
+        "helpers/ble_central.c",
+    ],
+)
