@@ -1,7 +1,7 @@
 {
   "name": "standoff",
   "productName": "Standoff",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Two-player buzzer quiz kiosk",
   "type": "module",
   "main": "src/main/main.js",

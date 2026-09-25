@@ -5,14 +5,14 @@ App(
     entry_point="quiz_buzzer_app",
     stack_size=4 * 1024,
     fap_category="Bluetooth",
-    fap_description="BLE central controller for the quiz-buzzer device (NUS): "
-    "scan by service UUID, Just Works pairing, START/PING commands, BTN events.",
+    fap_description="Turns the Flipper into the BLE quiz-buzzer device (NUS peripheral): "
+    "advertises the NUS service, Just Works pairing, receives START/PING, sends BTN/STATE.",
     fap_author="Evgeniy Raev",
-    fap_version="0.1",
+    fap_version="0.2",
     fap_icon="quiz_buzzer.png",
     sources=[
         "quiz_buzzer_app.c",
         "helpers/nus_protocol.c",
-        "helpers/ble_central.c",
+        "helpers/nus_profile.c",
     ],
 )

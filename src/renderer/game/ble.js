@@ -15,6 +15,7 @@ const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // indications
 const PING_MS = 2000;
 const RESCAN_MS = 5000;
 const MAX_RECONNECTS = 5;
+const LOG_SIZE = 50; // entries kept in status.ble.log (shown in Settings → System)
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -30,7 +31,7 @@ export class Buzzers {
     this.failures = 0;
     this.retryTimer = null;
     this.pingTimer = null;
-    this.status = { state: 'idle', device: null, error: null, deviceState: null };
+    this.status = { state: 'idle', device: null, error: null, deviceState: null, log: [] };
     this.queue = Promise.resolve(); // GATT writes must not overlap
     window.__standoffBleScan = () => this.scan();
   }
@@ -40,9 +41,16 @@ export class Buzzers {
     this.onStatus(this.status);
   }
 
+  /** Appends a line to the rolling connection log (also mirrored to the console). */
+  log(msg, level = 'info') {
+    (level === 'error' ? console.warn : console.log)(`[ble] ${msg}`);
+    this.setStatus({ log: [...this.status.log, { t: Date.now(), level, msg }].slice(-LOG_SIZE) });
+  }
+
   setEnabled(enabled) {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
+    this.log(enabled ? 'Bluetooth buzzers enabled' : 'Bluetooth buzzers disabled');
     if (enabled) this.requestScan();
     else {
       clearTimeout(this.retryTimer);
@@ -53,14 +61,20 @@ export class Buzzers {
 
   requestScan() {
     if (!this.enabled) return;
-    if (!navigator.bluetooth) return this.setStatus({ state: 'unsupported', error: 'Web Bluetooth not available' });
+    if (!navigator.bluetooth) {
+      this.log('navigator.bluetooth is missing — Web Bluetooth not available', 'error');
+      return this.setStatus({ state: 'unsupported', error: 'Web Bluetooth not available' });
+    }
     this.setStatus({ state: 'scanning', error: null });
+    this.log('Requesting scan from main process');
     window.standoff.bleScan(); // main process calls this.scan() with a user gesture
   }
 
   async scan() {
+    this.log(`Scanning for NUS service ${NUS_SERVICE}`);
     try {
       const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [NUS_SERVICE] }] });
+      this.log(`Found device "${device.name ?? '(no name)'}" id=${device.id}`);
       if (this.device !== device) {
         this.device = device;
         device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
@@ -68,6 +82,7 @@ export class Buzzers {
       this.failures = 0;
       await this.connect();
     } catch (err) {
+      this.log(`Scan failed: ${err.name}: ${err.message} — rescanning in ${RESCAN_MS / 1000}s`, 'error');
       this.setStatus({ state: 'not-found', error: err.message });
       this.retry(() => this.requestScan(), RESCAN_MS);
     }
@@ -76,21 +91,34 @@ export class Buzzers {
   async connect() {
     if (!this.device) return this.requestScan();
     this.setStatus({ state: 'connecting', device: this.device.name || this.device.id });
+    let step = 'GATT connect';
     try {
+      this.log(`Connecting (attempt ${this.failures + 1})…`);
       const server = await this.device.gatt.connect();
+      step = 'discover NUS service';
+      this.log('GATT connected, discovering NUS service');
       const service = await server.getPrimaryService(NUS_SERVICE);
+      step = 'get RX characteristic';
       this.rx = await service.getCharacteristic(NUS_RX);
+      step = 'get TX characteristic';
       const tx = await service.getCharacteristic(NUS_TX);
+      const props = Object.entries({ write: tx.properties.write, notify: tx.properties.notify, indicate: tx.properties.indicate })
+        .filter(([, on]) => on)
+        .map(([k]) => k);
+      this.log(`RX/TX found (TX props: ${props.join(', ') || 'none'}); subscribing (may trigger pairing)`);
       // Re-subscribe on every connection: CCCD state is not guaranteed to survive.
+      step = 'subscribe TX (encrypted — pairing)';
       tx.addEventListener('characteristicvaluechanged', (e) => this.onMessage(decoder.decode(e.target.value)));
       await tx.startNotifications();
       this.failures = 0;
+      this.log('Subscribed to TX — connected and ready');
       this.setStatus({ state: 'connected', error: null });
     } catch (err) {
       // Connected-then-rejected on the encrypted op is the bond-mismatch
       // signature (see integration guide §3).
       this.rx = null;
-      this.setStatus({ state: 'error', error: err.message });
+      this.log(`Failed at "${step}": ${err.name}: ${err.message}`, 'error');
+      this.setStatus({ state: 'error', error: `${step}: ${err.message}` });
       this.onDisconnected();
     }
   }
@@ -100,12 +128,15 @@ export class Buzzers {
     if (!this.enabled) return;
     this.failures += 1;
     if (this.failures > MAX_RECONNECTS) {
+      this.log(`Gave up after ${MAX_RECONNECTS} reconnects — forgetting device, full rescan`, 'error');
       this.device = null; // stale handle → full rescan
       this.failures = 0;
       return this.retry(() => this.requestScan(), RESCAN_MS);
     }
+    const delay = Math.min(10_000, 1000 * this.failures);
+    this.log(`Disconnected — reconnecting in ${delay / 1000}s (failure ${this.failures}/${MAX_RECONNECTS})`, 'error');
     this.setStatus({ state: 'reconnecting' });
-    this.retry(() => this.connect(), Math.min(10_000, 1000 * this.failures));
+    this.retry(() => this.connect(), delay);
   }
 
   retry(fn, ms) {
@@ -114,6 +145,7 @@ export class Buzzers {
   }
 
   reconnect() {
+    this.log('Manual reconnect requested');
     this.failures = 0;
     this.device?.gatt?.disconnect();
     this.device = null;
@@ -122,6 +154,7 @@ export class Buzzers {
 
   onMessage(raw) {
     const msg = raw.trim();
+    this.log(`← ${msg}`);
     const btn = /^BTN:(\d+):(\d+)$/.exec(msg);
     if (btn) {
       const seq = Number(btn[2]);
@@ -137,10 +170,15 @@ export class Buzzers {
 
   send(command) {
     this.queue = this.queue.then(async () => {
-      if (!this.rx) return;
+      if (!this.rx) {
+        if (command !== 'PING') this.log(`${command} dropped — not connected`, 'error');
+        return;
+      }
       try {
         await this.rx.writeValueWithResponse(encoder.encode(command));
+        if (command !== 'PING') this.log(`→ ${command}`); // PING every 2 s would flood the log
       } catch (err) {
+        this.log(`→ ${command} failed: ${err.name}: ${err.message}`, 'error');
         this.setStatus({ error: `${command} failed: ${err.message}` });
       }
     });

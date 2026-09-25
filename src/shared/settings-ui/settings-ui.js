@@ -493,6 +493,8 @@ export async function mountSettings(root, api, { title = 'Settings' } = {}) {
         toggleField('ble.keyboardFallback', 'Keyboard fallback (keys 1 and 2)'),
         h('div', { class: 'sx-actions' }, h('button', { class: 'sx-btn', onClick: () => run('ble:reconnect', 'Reconnecting buzzers…') }, 'Reconnect buzzers')),
         h('small', { class: 'sx-muted' }, 'If it connects then drops immediately: forget the device in Windows Bluetooth settings and hold both buzzers for 3 s while powering on.'),
+        h('h3', { class: 'sx-subhead' }, 'Connection log'),
+        bleLog(b.log),
       ),
       card(
         'Admin link (WebRTC)',
@@ -507,6 +509,18 @@ export async function mountSettings(root, api, { title = 'Settings' } = {}) {
         h('div', { class: 'sx-actions' }, h('button', { class: 'sx-btn', onClick: () => run('remote:reconnect', 'Rejoining room…') }, 'Rejoin room')),
       ),
     ];
+  }
+
+  // Newest first so the latest event is visible without scrolling.
+  function bleLog(entries = []) {
+    const time = (t) => new Date(t).toLocaleTimeString([], { hour12: false });
+    return h(
+      'div',
+      { class: 'sx-log sx-mono' },
+      entries.length
+        ? [...entries].reverse().map((e) => h('div', { class: `sx-log-line ${e.level}` }, h('span', { class: 'sx-log-time' }, time(e.t)), e.msg))
+        : h('div', { class: 'sx-muted' }, 'No events yet'),
+    );
   }
 
   const RENDERERS = { questions: renderQuestions, game: renderGame, theme: renderTheme, kiosk: renderKiosk, system: renderSystem };

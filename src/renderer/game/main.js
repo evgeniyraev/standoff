@@ -128,7 +128,11 @@ api.onGameCommand((payload) => {
   const { name } = payload;
   if (name === 'reset') engine.reset();
   if (name === 'ble:reconnect') buzzers.reconnect();
-  if (name === 'ble:unavailable') buzzers.setStatus({ state: 'unsupported', error: payload.reason });
+  if (name === 'ble:unavailable') {
+    buzzers.log(payload.reason, 'error');
+    buzzers.setStatus({ state: 'unsupported', error: payload.reason });
+  }
+  if (name === 'ble:log') buzzers.log(`[main] ${payload.msg}`, payload.level);
 });
 
 applyConfig();

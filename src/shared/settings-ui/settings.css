@@ -124,6 +124,30 @@
   word-break: break-all;
 }
 
+.sx-subhead {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.sx-log {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: text;
+}
+.sx-log-line.error {
+  color: var(--yellow);
+}
+.sx-log-time {
+  color: var(--muted);
+  margin-right: 8px;
+}
+
 .sx-grid2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

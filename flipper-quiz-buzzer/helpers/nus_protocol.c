@@ -1,65 +1,31 @@
 #include "nus_protocol.h"
 
+#include <stdio.h>
 #include <string.h>
 
-// Parse an unsigned decimal from [p, end). Advances *p past the digits.
-// Returns false if no digit was consumed.
-static bool parse_u32(const char** p, const char* end, uint32_t* out) {
-    const char* s = *p;
-    if(s >= end || *s < '0' || *s > '9') return false;
-    uint32_t v = 0;
-    while(s < end && *s >= '0' && *s <= '9') {
-        v = (v * 10u) + (uint32_t)(*s - '0');
-        s++;
-    }
-    *p = s;
-    *out = v;
-    return true;
+NusCommand nus_parse_command(const uint8_t* data, size_t len) {
+    if(!data) return NusCmdUnknown;
+    // Trim a single trailing '\n' (device trims it per §7).
+    if(len > 0 && data[len - 1] == '\n') len--;
+    if(len == 0) return NusCmdUnknown;
+
+    static const char start[] = "START";
+    static const char ping[] = "PING";
+    if(len == sizeof(start) - 1 && memcmp(data, start, len) == 0) return NusCmdStart;
+    if(len == sizeof(ping) - 1 && memcmp(data, ping, len) == 0) return NusCmdPing;
+    return NusCmdUnknown;
 }
 
-bool nus_parse(const uint8_t* data, size_t len, NusMessage* out) {
-    if(!data || !out) return false;
-    memset(out, 0, sizeof(*out));
-    out->type = NusMsgUnknown;
+size_t nus_build_button(char* buf, size_t buf_size, uint8_t id, uint32_t seq) {
+    if(!buf || buf_size == 0) return 0;
+    int n = snprintf(buf, buf_size, "BTN:%u:%lu", (unsigned)id, (unsigned long)seq);
+    if(n < 0 || (size_t)n >= buf_size) return 0; // overflow / truncation
+    return (size_t)n;
+}
 
-    // Trim a single trailing '\n' (device does the same on writes; symmetric here).
-    if(len > 0 && data[len - 1] == '\n') len--;
-    if(len == 0) return false;
-
-    const char* p = (const char*)data;
-    const char* end = p + len;
-
-    // BTN:<id>:<seq>
-    static const char btn[] = "BTN:";
-    static const char state[] = "STATE:";
-    const size_t btn_len = sizeof(btn) - 1;
-    const size_t state_len = sizeof(state) - 1;
-
-    if(len > btn_len && memcmp(p, btn, btn_len) == 0) {
-        const char* q = p + btn_len;
-        uint32_t id = 0, seq = 0;
-        if(!parse_u32(&q, end, &id)) return false;
-        if(q >= end || *q != ':') return false;
-        q++;
-        if(!parse_u32(&q, end, &seq)) return false;
-        // Spec: id is 1 or 2. Reject anything else as malformed.
-        if(id != 1 && id != 2) return false;
-        out->type = NusMsgButton;
-        out->button_id = (uint8_t)id;
-        out->seq = seq;
-        return true;
-    }
-
-    if(len > state_len && memcmp(p, state, state_len) == 0) {
-        const char* q = p + state_len;
-        size_t n = (size_t)(end - q);
-        if(n == 0) return false;
-        if(n >= NUS_STATE_NAME_MAX) n = NUS_STATE_NAME_MAX - 1;
-        memcpy(out->state_name, q, n);
-        out->state_name[n] = '\0';
-        out->type = NusMsgState;
-        return true;
-    }
-
-    return false;
+size_t nus_build_state(char* buf, size_t buf_size, const char* name) {
+    if(!buf || buf_size == 0 || !name) return 0;
+    int n = snprintf(buf, buf_size, "STATE:%s", name);
+    if(n < 0 || (size_t)n >= buf_size) return 0;
+    return (size_t)n;
 }

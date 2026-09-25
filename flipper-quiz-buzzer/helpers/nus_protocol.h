@@ -1,13 +1,14 @@
 /**
- * Nordic UART Service (NUS) protocol for the quiz-buzzer device.
+ * Nordic UART Service (NUS) protocol, device side.
  *
- * Wire format (see pc-app-ble-integration.md §7). All messages are short ASCII,
- * one message per GATT write / indication, no framing newline required.
+ * The Flipper plays the quiz-buzzer *device* (BLE peripheral, NUS server). The
+ * PC connects to it. Directions therefore mirror pc-app-ble-integration.md §7:
  *
- *   START           app -> device   begin a round
- *   PING            app -> device   liveness, only while waiting-for-game-start
- *   BTN:<id>:<seq>  device -> app   id is 1|2, seq is an incrementing counter
- *   STATE:<name>    device -> app   state change
+ *   RX (PC -> device, we receive):   START | PING
+ *   TX (device -> PC, we send):      BTN:<id>:<seq> | STATE:<name>
+ *
+ * All messages are short ASCII, one message per GATT write / indication, no
+ * framing newline required; a trailing '\n' is tolerated on receive (§7).
  */
 #pragma once
 
@@ -15,38 +16,35 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// NUS 128-bit UUIDs (pc-app-ble-integration.md §1).
+// NUS 128-bit UUIDs (pc-app-ble-integration.md §1). Byte arrays live in
+// nus_profile.c; these strings are for reference/logging.
 #define NUS_SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
-#define NUS_RX_CHAR_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" // write commands to device
-#define NUS_TX_CHAR_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // receive events from device
+#define NUS_RX_CHAR_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" // PC writes commands here
+#define NUS_TX_CHAR_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // device sends events here
 
-// CCCD value to enable Indications on the TX characteristic (§2 step 5).
-#define NUS_CCCD_INDICATE 0x0002
-
+// Inbound commands (RX).
 typedef enum {
-    NusMsgUnknown = 0,
-    NusMsgButton, // BTN:<id>:<seq>
-    NusMsgState, // STATE:<name>
-} NusMsgType;
-
-#define NUS_STATE_NAME_MAX 24
-
-typedef struct {
-    NusMsgType type;
-    // Valid when type == NusMsgButton
-    uint8_t button_id; // 1 or 2
-    uint32_t seq; // incrementing counter, used to dedup (§7)
-    // Valid when type == NusMsgState
-    char state_name[NUS_STATE_NAME_MAX];
-} NusMessage;
+    NusCmdUnknown = 0,
+    NusCmdStart, // START — begin a round
+    NusCmdPing, // PING — liveness while waiting-for-game-start
+} NusCommand;
 
 /**
- * Parse one inbound message (a single TX indication payload).
- * `data` need not be NUL-terminated; a trailing '\n' is tolerated and trimmed.
- * Returns true if the message was recognised (type != NusMsgUnknown).
+ * Classify one inbound RX write payload. `data` need not be NUL-terminated; a
+ * single trailing '\n' is trimmed first (§7).
  */
-bool nus_parse(const uint8_t* data, size_t len, NusMessage* out);
+NusCommand nus_parse_command(const uint8_t* data, size_t len);
 
-// Canonical outbound command payloads (no trailing newline, §7).
-#define NUS_CMD_START "START"
-#define NUS_CMD_PING "PING"
+// Outbound event builders (TX). Write ASCII (no trailing newline, §7) into buf
+// and return the byte length written (excluding any NUL), or 0 on overflow.
+
+// BTN:<id>:<seq>, id is 1 or 2 (§7).
+size_t nus_build_button(char* buf, size_t buf_size, uint8_t id, uint32_t seq);
+
+// STATE:<name>
+size_t nus_build_state(char* buf, size_t buf_size, const char* name);
+
+// Canonical state names emitted on TX (exact set TBD with firmware, §7).
+#define NUS_STATE_WAITING "WAITING" // waiting for game start
+#define NUS_STATE_ARMED "ARMED" // round started, waiting for a buzz
+#define NUS_STATE_PRESSED "PRESSED" // a player buzzed; round resolved

@@ -136,7 +136,7 @@ function registerIpc() {
     // Electron's unsigned dev binary on macOS has no NSBluetoothAlwaysUsageDescription,
     // so touching Bluetooth aborts the process. Use the keyboard fallback there.
     if (process.platform === 'darwin' && !app.isPackaged && process.env.STANDOFF_BLE !== '1') {
-      gameWin?.webContents.send(IPC.GAME_COMMAND, { name: 'ble:unavailable', reason: 'Bluetooth disabled in macOS dev (set STANDOFF_BLE=1 to force)' });
+      gameWin?.webContents.send(IPC.GAME_COMMAND, { name: 'ble:unavailable', reason: 'Bluetooth disabled in macOS dev — restart with STANDOFF_BLE=1 npm run dev' });
       return;
     }
     bluetooth?.requestScan();

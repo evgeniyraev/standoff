@@ -6,12 +6,20 @@
 //   2. answer OS pairing prompts (the buzzer uses "Just Works" pairing),
 //   3. provide a user gesture, which requestDevice requires.
 
+import { IPC } from '../shared/protocol.js';
+
 const SCAN_TIMEOUT_MS = 15000;
 
 export function setupBluetooth(win) {
   const wc = win.webContents;
   const ses = wc.session;
-  let scan = null; // { callback, timer }
+  let scan = null; // { callback, timer, seen }
+
+  // Mirrored into the game renderer's BLE log (Settings → System → Buzzers).
+  const log = (msg, level = 'info') => {
+    console.log(`[ble] ${msg}`);
+    if (!wc.isDestroyed()) wc.send(IPC.GAME_COMMAND, { name: 'ble:log', msg, level });
+  };
 
   ses.setPermissionCheckHandler((_wc, permission) => permission === 'bluetooth' || permission === 'fullscreen');
   ses.setDevicePermissionHandler((details) => details.deviceType === 'bluetooth');
@@ -19,6 +27,7 @@ export function setupBluetooth(win) {
   // Windows / Linux only. Just Works → "confirm"; accept everything that does
   // not need a user-entered PIN.
   ses.setBluetoothPairingHandler?.((details, callback) => {
+    log(`Pairing request: kind=${details.pairingKind} device=${details.deviceId}`);
     if (details.pairingKind === 'providePin') callback({ confirmed: false });
     else callback({ confirmed: true });
   });
@@ -28,15 +37,23 @@ export function setupBluetooth(win) {
   wc.on('select-bluetooth-device', (event, devices, callback) => {
     event.preventDefault();
     if (!scan) {
-      scan = { callback, timer: setTimeout(() => finish(''), SCAN_TIMEOUT_MS) };
+      log(`Chooser opened, scanning up to ${SCAN_TIMEOUT_MS / 1000}s`);
+      scan = { callback, timer: setTimeout(() => finish(''), SCAN_TIMEOUT_MS), seen: '' };
     } else {
       scan.callback = callback;
+    }
+    // Fires on every advertisement; only log when the candidate list changes.
+    const seen = devices.map((d) => `"${d.deviceName || '(no name)'}" ${d.deviceId}`).join(', ');
+    if (seen !== scan.seen) {
+      scan.seen = seen;
+      log(`Candidates with NUS service: ${seen || 'none yet'}`);
     }
     if (devices.length) finish(devices[0].deviceId);
   });
 
   function finish(deviceId) {
     if (!scan) return;
+    log(deviceId ? `Selected ${deviceId}` : 'Scan timed out — no device advertising the NUS service', deviceId ? 'info' : 'error');
     clearTimeout(scan.timer);
     const { callback } = scan;
     scan = null;
@@ -45,8 +62,10 @@ export function setupBluetooth(win) {
 
   return {
     /** Runs the renderer's scan function with a synthetic user gesture. */
+    log,
     requestScan() {
-      if (scan || wc.isDestroyed()) return;
+      if (wc.isDestroyed()) return;
+      if (scan) return log('Scan already running, request ignored');
       wc.executeJavaScript('window.__standoffBleScan && window.__standoffBleScan()', true).catch(() => {});
     },
   };
