@@ -281,7 +281,7 @@ Access = knowing room + PIN. The room is effectively a long random password; the
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `release.yml` | push tag `v*`, or manual with a version | `npm ci` → tests → set version from the tag → write `build-info.json` → Vite build → `electron-builder --win --publish always`. Creates a **published** GitHub Release with `Standoff-Setup-x.y.z.exe`, `.blockmap` and `latest.yml`. |
+| `release.yml` | push tag `v*`, or manual with a version | `npm ci` → tests → set version from the tag → write `build-info.json` → Vite build → `electron-builder --win --publish never` → `gh release create`. Creates one **published** GitHub Release with `Standoff-Setup-x.y.z.exe`, `.blockmap` and `latest.yml`. |
 | `admin-pages.yml` | push to `main` (admin, shared or asset changes), or manual | Builds `dist/admin` and deploys it to GitHub Pages. |
 | `ci.yml` | PRs and pushes to `main` | Tests + builds. |
 

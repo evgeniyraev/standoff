@@ -52,12 +52,27 @@ jobs:
 
       - run: npm run build:renderer
 
-      - name: Build installer and publish release
+      # Build only. electron-builder's own publishing uploads files in parallel
+      # and sometimes creates a second release for the same tag (one with just
+      # the blockmap), which then becomes "Latest" and has no latest.yml.
+      - name: Build installer
         shell: bash
         run: >
-          npx electron-builder --win --publish always
+          npx electron-builder --win --publish never
           -c.publish.owner=${{ github.repository_owner }}
           -c.publish.repo=${{ github.event.repository.name }}
+
+      # One release, all update-feed files in a single call.
+      - name: Publish release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then NOTES=(--notes-from-tag); else NOTES=(--generate-notes); fi
+          gh release create "v$VERSION" \
+            "release/Standoff-Setup-$VERSION.exe" \
+            "release/Standoff-Setup-$VERSION.exe.blockmap" \
+            release/latest.yml \
+            --title "$VERSION" --target "$GITHUB_SHA" "${NOTES[@]}"
         env:
           # Built-in token; no personal token needed. Manual runs create tag v$VERSION.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
