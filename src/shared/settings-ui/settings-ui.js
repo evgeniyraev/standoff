@@ -491,6 +491,7 @@ export async function mountSettings(root, api, { title = 'Settings' } = {}) {
         h('dl', { class: 'sx-dl' }, h('dt', {}, 'State'), h('dd', {}, `${b.state ?? '?'}${b.device ? ` · ${b.device}` : ''}`), b.error ? [h('dt', {}, 'Last error'), h('dd', {}, b.error)] : null, b.lastButton ? [h('dt', {}, 'Last press'), h('dd', {}, `Player ${b.lastButton.player} · #${b.lastButton.seq}`)] : null),
         toggleField('ble.enabled', 'Use Bluetooth buzzers'),
         toggleField('ble.keyboardFallback', 'Keyboard fallback (keys 1 and 2)'),
+        toggleField('ble.autoReconnect', 'Reconnect automatically', 'Off: after a drop or failed attempt the app stops and waits for "Reconnect buzzers".'),
         h('div', { class: 'sx-actions' }, h('button', { class: 'sx-btn', onClick: () => run('ble:reconnect', 'Reconnecting buzzers…') }, 'Reconnect buzzers')),
         h('small', { class: 'sx-muted' }, 'If it connects then drops immediately: forget the device in Windows Bluetooth settings and hold both buzzers for 3 s while powering on.'),
         h('h3', { class: 'sx-subhead' }, 'Connection log'),

@@ -50,6 +50,7 @@ export const DEFAULT_CONFIG = {
   ble: {
     enabled: true,
     keyboardFallback: true, // keys 1 / 2 act as buzzers
+    autoReconnect: true, // off: after a drop or failure, wait for "Reconnect buzzers"
   },
   remote: {
     enabled: true,
@@ -98,6 +99,11 @@ export function normalizeConfig(raw) {
   k.hiddenSize = clampInt(k.hiddenSize, 40, 400, d.kiosk.hiddenSize);
   k.holdSeconds = clampInt(k.holdSeconds, 2, 60, d.kiosk.holdSeconds);
   k.doubleTapMs = clampInt(k.doubleTapMs, 150, 1500, d.kiosk.doubleTapMs);
+
+  const b = cfg.ble;
+  b.enabled = Boolean(b.enabled);
+  b.keyboardFallback = Boolean(b.keyboardFallback);
+  b.autoReconnect = Boolean(b.autoReconnect);
 
   const t = cfg.theme;
   for (const key of Object.keys(BRAND_COLORS)) {

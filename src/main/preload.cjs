@@ -37,6 +37,6 @@ contextBridge.exposeInMainWorld('standoff', {
   command: (name, args) => ipcRenderer.invoke(IPC.COMMAND, name, args),
   onGameCommand: subscribe(IPC.GAME_COMMAND),
 
-  bleScan: () => ipcRenderer.send(IPC.BLE_SCAN),
+  bleScan: (opts) => ipcRenderer.send(IPC.BLE_SCAN, opts),
   getRemoteParams: () => ipcRenderer.invoke(IPC.REMOTE_PARAMS),
 });

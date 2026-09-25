@@ -138,14 +138,14 @@ function registerIpc() {
   });
   // Commands arriving through the remote window came from the admin page.
   ipcMain.handle(IPC.COMMAND, (e, name, args) => runCommand(name, args, { fromRemote: e.sender === remoteWin?.webContents }));
-  ipcMain.on(IPC.BLE_SCAN, () => {
+  ipcMain.on(IPC.BLE_SCAN, (_e, opts) => {
     // Electron's unsigned dev binary on macOS has no NSBluetoothAlwaysUsageDescription,
     // so touching Bluetooth aborts the process. Use the keyboard fallback there.
     if (process.platform === 'darwin' && !app.isPackaged && process.env.STANDOFF_BLE !== '1') {
       gameWin?.webContents.send(IPC.GAME_COMMAND, { name: 'ble:unavailable', reason: 'Bluetooth disabled in macOS dev — restart with STANDOFF_BLE=1 npm run dev' });
       return;
     }
-    bluetooth?.requestScan();
+    bluetooth?.requestScan({ repair: opts?.repair === true });
   });
   ipcMain.handle(IPC.REMOTE_PARAMS, () => {
     const info = getBuildInfo();

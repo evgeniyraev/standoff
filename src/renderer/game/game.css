@@ -559,6 +559,7 @@ button {
 }
 #ble-dot[data-state='not-found'],
 #ble-dot[data-state='error'],
+#ble-dot[data-state='disconnected'],
 #ble-dot[data-state='unsupported'] {
   background: var(--red);
 }

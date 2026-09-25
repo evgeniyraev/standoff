@@ -3,14 +3,14 @@
 // renders whatever state it emits. Timers are injected so tests can drive
 // time deterministically.
 //
-// Screens:  start → countdown → buzz ⇄ answer → result → (buzz | answer | win)
+// Screens:  start → countdown → buzz ⇄ answer → result → (buzz | answer | win) → start
 //
 //   start      "How to play" + WE'RE READY
 //   countdown  GET READY 3…2…1
 //   buzz       question shown, buzzers armed, buzzSeconds to press
 //   answer     one player answers by tapping, answerSeconds
 //   result     correct | wrong | timeout | nobuzz, then continue
-//   win        winner screen until PLAY AGAIN or idle reset
+//   win        winner screen; PLAY AGAIN (or idle reset) returns to the rules
 
 import { QuestionDeck } from './questions.js';
 
@@ -40,9 +40,9 @@ export class GameEngine {
 
   // ---- public events -----------------------------------------------------
 
-  /** WE'RE READY / PLAY AGAIN */
+  /** WE'RE READY */
   ready() {
-    if (this.state.screen !== 'start' && this.state.screen !== 'win') return;
+    if (this.state.screen !== 'start') return;
     const cfg = this.getConfig();
     this.deck = new QuestionDeck(cfg.questions, this.random);
     this.set({ screen: 'countdown', scores: [0, 0], questionNumber: 0, winner: null, question: null });
@@ -67,6 +67,11 @@ export class GameEngine {
     } else {
       this.afterMiss('wrong', index);
     }
+  }
+
+  /** PLAY AGAIN: show the rules again before the next game. */
+  playAgain() {
+    if (this.state.screen === 'win') this.reset();
   }
 
   /** Back to the start screen (idle fallback, double tap, admin). */

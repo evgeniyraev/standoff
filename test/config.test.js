@@ -11,6 +11,11 @@ test('normalizeConfig fills defaults and clamps values', () => {
   assert.equal(cfg.questions.length, 5);
 });
 
+test('ble.autoReconnect defaults on and keeps an explicit off', () => {
+  assert.equal(normalizeConfig({}).ble.autoReconnect, true);
+  assert.equal(normalizeConfig({ ble: { autoReconnect: false } }).ble.autoReconnect, false);
+});
+
 test('deepMerge merges objects and replaces arrays', () => {
   assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1, 2] }, { a: { c: 3 }, l: [9] }), { a: { b: 1, c: 3 }, l: [9] });
 });

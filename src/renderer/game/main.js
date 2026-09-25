@@ -72,7 +72,8 @@ stage.addEventListener('click', (e) => {
   const target = e.target.closest('[data-action], [data-answer]');
   if (!target || target.disabled) return;
   if (target.dataset.answer !== undefined) engine.answer(Number(target.dataset.answer));
-  else if (target.dataset.action === 'ready' || target.dataset.action === 'again') engine.ready();
+  else if (target.dataset.action === 'ready') engine.ready();
+  else if (target.dataset.action === 'again') engine.playAgain();
 });
 
 // ---- buzzers ------------------------------------------------------------------
@@ -115,6 +116,7 @@ function applyConfig() {
   applyTheme();
   idle.configure(config.kiosk.idleTimeoutSeconds);
   hidden.configure(config.kiosk);
+  buzzers.setAutoReconnect(config.ble.autoReconnect);
   buzzers.setEnabled(config.ble.enabled);
   render();
 }

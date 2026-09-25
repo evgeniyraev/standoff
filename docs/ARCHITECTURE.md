@@ -200,11 +200,12 @@ The hardware protocol is specified in `pc-app-ble-integration.md` (Nordic UART S
 
 **Why Web Bluetooth instead of a Node BLE library:** `noble` is unreliable on Windows. Chromium's Web Bluetooth uses the native WinRT stack, supports indications and write-with-response, and needs no native modules to compile in CI.
 
-Electron needs the main process to help in three ways (`src/main/bluetooth.js`):
+Electron needs the main process to help in four ways (`src/main/bluetooth.js`):
 
 1. **Device choice:** Electron has no chooser UI. The `select-bluetooth-device` handler picks the first device advertising the NUS service UUID, and cancels after 15 s so the renderer can retry.
-2. **Pairing:** `setBluetoothPairingHandler` confirms Just Works pairing without a prompt.
+2. **Pairing:** `setBluetoothPairingHandler` confirms Just Works pairing without a prompt (needs the `WebBluetoothConfirmPairingSupport` Chromium feature, switched on in `main.js`).
 3. **User gesture:** `requestDevice()` needs one. The game asks main (`bleScan()`), and main calls the renderer's scan function through `executeJavaScript(..., userGesture = true)`.
+4. **Windows OS pairing** (`src/main/win-pair.js`): Web Bluetooth alone does not pair the buzzer reliably on Windows. Encrypted writes to RX then fail with "Connection already in progress", even though subscribing to TX works. So before main hands the chosen device to Web Bluetooth, it pairs the device with Windows through WinRT, run from PowerShell, and accepts the ConfirmOnly request in code. If writes still fail after a reconnect, the renderer asks for a rescan with `repair`, and main removes the Windows bond before pairing again. That fixes a Windows-side bond mismatch. The device-side bond still has to be cleared by hand.
 
 **Connection lifecycle** (`src/renderer/game/ble.js`):
 
@@ -212,6 +213,8 @@ Electron needs the main process to help in three ways (`src/main/bluetooth.js`):
 scan → connect → getPrimaryService(NUS) → RX/TX → startNotifications(TX) → connected
   disconnect → reconnect with backoff (1 s … 10 s)
   more than 5 failures → forget the device object → scan again
+  3 failed writes → reconnect; 3 more → rescan + Windows re-pair
+  ble.autoReconnect = false → none of the above; stop and wait for "Reconnect buzzers"
 ```
 
 - The app re-subscribes to TX on every reconnect, because the CCCD isn't guaranteed to persist.

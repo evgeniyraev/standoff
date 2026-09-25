@@ -66,6 +66,23 @@ test('correct answer scores and first to pointsToWin wins', () => {
   assert.equal(engine.state.winner, 2);
 });
 
+test('play again returns to the rules screen with fresh scores', () => {
+  const { engine, advance, correct } = setup({ pointsToWin: 1 });
+  engine.ready();
+  advance(3);
+  engine.buzz(1);
+  engine.answer(correct());
+  advance(5);
+  assert.equal(engine.state.screen, 'win');
+  engine.ready(); // only the rules screen starts a game
+  assert.equal(engine.state.screen, 'win');
+  engine.playAgain();
+  assert.equal(engine.state.screen, 'start');
+  assert.deepEqual(engine.state.scores, [0, 0]);
+  engine.ready();
+  assert.equal(engine.state.screen, 'countdown');
+});
+
 test('wrong answer hands over to the other player once', () => {
   const { engine, advance, wrongIdx } = setup();
   engine.ready();

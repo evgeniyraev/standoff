@@ -26,6 +26,7 @@ export class Buzzers {
     this.onButton = onButton;
     this.onStatus = onStatus;
     this.enabled = false;
+    this.autoReconnect = true;
     this.device = null;
     this.rx = null;
     this.lastSeq = null;
@@ -33,6 +34,8 @@ export class Buzzers {
     this.retryTimer = null;
     this.pingTimer = null;
     this.writeFailures = 0;
+    this.writeStrikes = 0; // write-failure rounds since the last successful write
+    this.repairNext = false;
     // Chromium hands back the same device/characteristic objects across scans
     // and reconnects; listen on each only once or every event fires N times.
     this.hooked = new WeakSet();
@@ -64,15 +67,24 @@ export class Buzzers {
     }
   }
 
-  requestScan() {
+  setAutoReconnect(on) {
+    if (on === this.autoReconnect) return;
+    this.autoReconnect = on;
+    this.log(on ? 'Auto-reconnect on' : 'Auto-reconnect off');
+    // Turned back on while idle after a drop → pick up where it stopped.
+    if (on && this.enabled && this.status.state === 'disconnected') this.connect();
+  }
+
+  requestScan({ repair = false } = {}) {
     if (!this.enabled) return;
     if (!navigator.bluetooth) {
       this.log('navigator.bluetooth is missing — Web Bluetooth not available', 'error');
       return this.setStatus({ state: 'unsupported', error: 'Web Bluetooth not available' });
     }
     this.setStatus({ state: 'scanning', error: null });
-    this.log('Requesting scan from main process');
-    window.standoff.bleScan(); // main process calls this.scan() with a user gesture
+    this.log(repair ? 'Requesting scan + Windows re-pair from main process' : 'Requesting scan from main process');
+    // Main process pairs with Windows, then calls this.scan() with a user gesture.
+    window.standoff.bleScan({ repair });
   }
 
   async scan() {
@@ -90,6 +102,7 @@ export class Buzzers {
       this.failures = 0;
       await this.connect();
     } catch (err) {
+      if (!this.autoReconnect) return this.stopRetrying(`Scan failed: ${err.name}: ${err.message}`);
       this.log(`Scan failed: ${err.name}: ${err.message} — rescanning in ${RESCAN_MS / 1000}s`, 'error');
       this.setStatus({ state: 'not-found', error: err.message });
       this.retry(() => this.requestScan(), RESCAN_MS);
@@ -138,6 +151,7 @@ export class Buzzers {
   onDisconnected() {
     this.rx = null;
     if (!this.enabled) return;
+    if (!this.autoReconnect) return this.stopRetrying('Disconnected');
     this.failures += 1;
     if (this.failures > MAX_RECONNECTS) {
       this.log(`Gave up after ${MAX_RECONNECTS} reconnects — forgetting device, full rescan`, 'error');
@@ -151,6 +165,13 @@ export class Buzzers {
     this.retry(() => this.connect(), delay);
   }
 
+  stopRetrying(reason) {
+    clearTimeout(this.retryTimer);
+    this.failures = 0;
+    this.log(`${reason} — auto-reconnect is off; press "Reconnect buzzers" to try again`, 'error');
+    this.setStatus({ state: 'disconnected' });
+  }
+
   retry(fn, ms) {
     clearTimeout(this.retryTimer);
     this.retryTimer = setTimeout(fn, ms);
@@ -158,6 +179,7 @@ export class Buzzers {
 
   reconnect() {
     this.log('Manual reconnect requested');
+    clearTimeout(this.retryTimer);
     this.failures = 0;
     const device = this.device;
     this.device = null; // before disconnect, so its event doesn't schedule a reconnect too
@@ -191,6 +213,7 @@ export class Buzzers {
       try {
         await this.rx.writeValueWithResponse(encoder.encode(command));
         this.writeFailures = 0;
+        this.writeStrikes = 0;
         if (command !== 'PING') this.log(`→ ${command}`); // PING every 2 s would flood the log
       } catch (err) {
         this.log(`→ ${command} failed: ${err.name}: ${err.message}`, 'error');
@@ -201,18 +224,30 @@ export class Buzzers {
     return this.queue;
   }
 
-  // RX needs an encrypted link, so the first write triggers OS pairing (see
-  // integration guide §3). Writes that keep failing mean pairing failed or is
-  // stuck, or the bonds on the two sides disagree. Dropping the link cancels
-  // the pending pair; the reconnect starts it over.
+  // RX needs an encrypted link (integration guide §3). Writes that keep
+  // failing mean the link is not encrypted: pairing failed or stalled, or the
+  // two sides disagree about the bond. First strike: drop the link and
+  // reconnect. Second strike: full rescan, and on Windows the main process
+  // removes the OS bond and pairs again (win-pair.js).
   onWriteFailed() {
     this.writeFailures += 1;
     if (this.writeFailures < MAX_WRITE_FAILURES || !this.device) return;
     this.writeFailures = 0;
-    this.log(`${MAX_WRITE_FAILURES} writes failed in a row — pairing failed or bond mismatch; dropping link to retry`, 'error');
+    this.writeStrikes += 1;
+    const device = this.device;
     this.rx = null;
-    if (this.device.gatt.connected) this.device.gatt.disconnect(); // → gattserverdisconnected → onDisconnected
-    else this.onDisconnected();
+    if (this.writeStrikes === 1) {
+      this.log(`${MAX_WRITE_FAILURES} writes failed in a row — link not encrypted (pairing failed?); reconnecting`, 'error');
+      if (device.gatt.connected) device.gatt.disconnect(); // → gattserverdisconnected → onDisconnected
+      else this.onDisconnected();
+      return;
+    }
+    this.log('Writes still failing after reconnect — likely bond mismatch; re-pairing from scratch', 'error');
+    this.writeStrikes = 0;
+    this.device = null; // before disconnect, so its event doesn't schedule a reconnect too
+    device.gatt.disconnect();
+    if (!this.autoReconnect) return this.stopRetrying('Writes still failing');
+    this.retry(() => this.requestScan({ repair: true }), 1000);
   }
 
   /** Arms both buttons for a round. */

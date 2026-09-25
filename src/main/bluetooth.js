@@ -4,16 +4,20 @@
 //   1. pick a device when the renderer calls navigator.bluetooth.requestDevice
 //      (there is no browser chooser UI in Electron),
 //   2. answer OS pairing prompts (the buzzer uses "Just Works" pairing),
-//   3. provide a user gesture, which requestDevice requires.
+//   3. provide a user gesture, which requestDevice requires,
+//   4. on Windows, pair the picked device with the OS before handing it to
+//      Web Bluetooth (see win-pair.js).
 
 import { IPC } from '../shared/protocol.js';
+import { ensurePaired } from './win-pair.js';
 
 const SCAN_TIMEOUT_MS = 15000;
 
 export function setupBluetooth(win) {
   const wc = win.webContents;
   const ses = wc.session;
-  let scan = null; // { callback, timer, seen }
+  let scan = null; // { callback, timer, seen, repair }
+  let repairNext = false; // drop the existing Windows bond before pairing again
 
   // Mirrored into the game renderer's BLE log (Settings → System → Buzzers).
   const log = (msg, level = 'info') => {
@@ -41,7 +45,8 @@ export function setupBluetooth(win) {
     event.preventDefault();
     if (!scan) {
       log(`Chooser opened, scanning up to ${SCAN_TIMEOUT_MS / 1000}s`);
-      scan = { callback, timer: setTimeout(() => finish(''), SCAN_TIMEOUT_MS), seen: '' };
+      scan = { callback, timer: setTimeout(() => finish(''), SCAN_TIMEOUT_MS), seen: '', repair: repairNext };
+      repairNext = false;
     } else {
       scan.callback = callback;
     }
@@ -54,10 +59,17 @@ export function setupBluetooth(win) {
     if (devices.length) finish(devices[0].deviceId);
   });
 
-  function finish(deviceId) {
-    if (!scan) return;
-    log(deviceId ? `Selected ${deviceId}` : 'Scan timed out — no device advertising the NUS service', deviceId ? 'info' : 'error');
+  async function finish(deviceId) {
+    if (!scan || scan.finishing) return;
+    scan.finishing = true; // select-bluetooth-device keeps firing while we pair
     clearTimeout(scan.timer);
+    log(deviceId ? `Selected ${deviceId}` : 'Scan timed out — no device advertising the NUS service', deviceId ? 'info' : 'error');
+    if (deviceId && process.platform === 'win32') {
+      log(scan.repair ? 'Re-pairing with Windows (removing the old bond first)…' : 'Checking Windows pairing…');
+      const { ok, status } = await ensurePaired(deviceId, { repair: scan.repair, log });
+      log(`Windows pairing: ${status}`, ok ? 'info' : 'error');
+      // Connect even on failure: Web Bluetooth's own pairing may still work.
+    }
     const { callback } = scan;
     scan = null;
     callback(deviceId); // '' cancels → renderer gets NotFoundError and retries later
@@ -66,8 +78,9 @@ export function setupBluetooth(win) {
   return {
     /** Runs the renderer's scan function with a synthetic user gesture. */
     log,
-    requestScan() {
+    requestScan({ repair = false } = {}) {
       if (wc.isDestroyed()) return;
+      if (repair) repairNext = true;
       if (scan) return log('Scan already running, request ignored');
       wc.executeJavaScript('window.__standoffBleScan && window.__standoffBleScan()', true).catch(() => {});
     },
