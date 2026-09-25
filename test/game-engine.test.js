@@ -138,3 +138,33 @@ test('reset returns to start from anywhere', () => {
   advance(60);
   assert.equal(engine.state.screen, 'start');
 });
+
+test('buzz timeout disarms the buzzers, next question re-arms them', () => {
+  const { engine, advance, effects } = setup({ pointsToWin: 2 });
+  engine.ready();
+  advance(3);
+  advance(engine.getConfig().game.buzzSeconds);
+  assert.equal(engine.state.result.kind, 'nobuzz');
+  assert.deepEqual(effects, ['arm', 'disarm']);
+  advance(engine.getConfig().game.resultSeconds);
+  assert.equal(engine.state.screen, 'buzz');
+  assert.deepEqual(effects, ['arm', 'disarm', 'arm']);
+});
+
+test('reset from a question disarms the buzzers', () => {
+  const { engine, advance, effects } = setup();
+  engine.ready();
+  advance(3);
+  engine.reset();
+  assert.equal(engine.state.screen, 'start');
+  assert.deepEqual(effects, ['arm', 'disarm']);
+});
+
+test('reset after a buzz does not send an extra disarm', () => {
+  const { engine, advance, effects } = setup();
+  engine.ready();
+  advance(3);
+  engine.buzz(1);
+  engine.reset();
+  assert.deepEqual(effects, ['arm']);
+});

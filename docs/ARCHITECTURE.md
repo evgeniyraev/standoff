@@ -161,7 +161,7 @@ stateDiagram-v2
 | "01 OF 05" | "OF NN" is shown while the question number ≤ `displayTotal`, then hidden ("06", "07"…). While answering, the label shows "PLAYER N" instead, as in the concept. | `game.displayTotal` (5) |
 | Colours | Question N uses `accentOrder[(N−1) % length]`: yellow, green, red, purple, blue, then repeat. | `theme.accentOrder` |
 
-**Side effects** leave the engine through `onEffect`. Today there is one: `{ type: 'arm' }`, which the game window turns into `START` for the buzzer device when a question appears.
+**Side effects** leave the engine through `onEffect`. There are two: `{ type: 'arm' }`, which the game window turns into `START` for the buzzer device when a question appears, and `{ type: 'disarm' }` → `STOP`, sent when the buzz time runs out with no press or when the game returns to the start screen from an armed question.
 
 **Timers** are injected (`clock`), so tests run instantly. See `test/game-engine.test.js`.
 
@@ -196,7 +196,7 @@ The client feedback on the concepts is built into the CSS (marked in `game.css`)
 
 ## 7. Buzzers (Bluetooth LE)
 
-The hardware protocol is specified in `pc-app-ble-integration.md` (Nordic UART Service). In short: the app writes `START` to arm a round and `PING` every 2 s while idle, and receives `BTN:<id>:<seq>` and `STATE:<name>` indications.
+The hardware protocol is specified in `pc-app-ble-integration.md` (Nordic UART Service). In short: the app writes `START` to arm a round, `STOP` to disarm it, and `PING` every 2 s while idle, and receives `BTN:<id>:<seq>` and `STATE:<name>` indications.
 
 **Why Web Bluetooth instead of a Node BLE library:** `noble` is unreliable on Windows. Chromium's Web Bluetooth uses the native WinRT stack, supports indications and write-with-response, and needs no native modules to compile in CI.
 
@@ -227,8 +227,8 @@ scan → connect → getPrimaryService(NUS) → RX/TX → startNotifications(TX)
 
 **Open items with the firmware**
 
+- `STOP` (disarm) is new: the device firmware must implement it (the Flipper stand-in does). Firmware that doesn't know it ignores it, and the buttons stay armed until the next `START`.
 - The exact `STATE:` names aren't final. They're only displayed; no logic depends on them.
-- There's no "cancel round" command. When nobody buzzes, the next `START` simply re-arms. If the firmware needs an explicit cancel, send it from the `nobuzz` result (add an engine effect).
 - For bond-mismatch recovery, see the integration guide §3. The settings window shows the operator hint.
 
 ---

@@ -10,8 +10,10 @@ NusCommand nus_parse_command(const uint8_t* data, size_t len) {
     if(len == 0) return NusCmdUnknown;
 
     static const char start[] = "START";
+    static const char stop[] = "STOP";
     static const char ping[] = "PING";
     if(len == sizeof(start) - 1 && memcmp(data, start, len) == 0) return NusCmdStart;
+    if(len == sizeof(stop) - 1 && memcmp(data, stop, len) == 0) return NusCmdStop;
     if(len == sizeof(ping) - 1 && memcmp(data, ping, len) == 0) return NusCmdPing;
     return NusCmdUnknown;
 }

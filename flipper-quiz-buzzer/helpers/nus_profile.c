@@ -74,7 +74,8 @@ static const BleGattCharacteristicParams nus_rx_char = {
     .uuid_type = UUID_TYPE_128,
     // §2.6: the PC uses Write With Response; also accept Without Response.
     .char_properties = CHAR_PROP_WRITE | CHAR_PROP_WRITE_WITHOUT_RESP,
-    // Encryption (not MITM authentication) so Just Works pairing suffices (§3).
+    // Encryption only, so Just Works pairing suffices (§3). Display mode
+    // raises this to authenticated at start.
     .security_permissions = ATTR_PERMISSION_ENCRY_WRITE,
     .gatt_evt_mask = GATT_NOTIFY_ATTRIBUTE_WRITE,
     .is_variable = CHAR_VALUE_LEN_VARIABLE,
@@ -133,8 +134,13 @@ static BleEventAckStatus nus_svc_event_handler(void* event, void* context) {
 }
 
 // --- Profile template hooks --------------------------------------------------
+static NusPairingMode nus_pairing_mode(FuriHalBleProfileParams params) {
+    const NusProfileParams* p = params;
+    return p ? p->pairing : NusPairingNoDisplay;
+}
+
 static void nus_get_gap_config(GapConfig* config, FuriHalBleProfileParams params) {
-    UNUSED(params);
+    const NusPairingMode mode = nus_pairing_mode(params);
     memset(config, 0, sizeof(*config));
 
     // Advertise the 128-bit NUS service UUID so the PC discovers by UUID (§1).
@@ -142,12 +148,17 @@ static void nus_get_gap_config(GapConfig* config, FuriHalBleProfileParams params
     memcpy(config->adv_service.Service_UUID_128, nus_service_uuid, sizeof(nus_service_uuid));
 
     config->bonding_mode = true; // §3 bonding
-    config->pairing_method = GapPairingNone; // §3 Just Works
+    // No display: §3 Just Works. Display: DisplayYesNo IO capability, so the
+    // host either types the PIN shown on the Flipper or confirms a matching
+    // number on both screens (the Bt service shows the PIN dialog).
+    config->pairing_method = mode == NusPairingDisplay ? GapPairingPinCodeVerifyYesNo :
+                                                         GapPairingNone;
 
     // Own address, distinct from the default profile (and HID, which uses +1):
-    // hosts cache GATT tables and bonds per address.
+    // hosts cache GATT tables and bonds per address. Each pairing mode gets its
+    // own address too, so a host never reuses a Just Works bond for PIN mode.
     memcpy(config->mac_address, furi_hal_version_get_ble_mac(), sizeof(config->mac_address));
-    config->mac_address[2] += 2;
+    config->mac_address[2] += mode == NusPairingDisplay ? 3 : 2;
 
     config->conn_param.conn_int_min = 0x06; // 7.5 ms
     config->conn_param.conn_int_max = 0x24; // 45 ms
@@ -160,7 +171,7 @@ static void nus_get_gap_config(GapConfig* config, FuriHalBleProfileParams params
 }
 
 static FuriHalBleProfileBase* nus_profile_start(FuriHalBleProfileParams params) {
-    UNUSED(params);
+    const bool authenticated = nus_pairing_mode(params) == NusPairingDisplay;
     NusProfile* p = malloc(sizeof(NusProfile));
     memset(p, 0, sizeof(*p));
     p->base.config = ble_profile_nus;
@@ -176,12 +187,14 @@ static FuriHalBleProfileBase* nus_profile_start(FuriHalBleProfileParams params) 
 
     BleGattCharacteristicParams rx_char = nus_rx_char;
     memcpy(rx_char.uuid.Char_UUID_128, nus_rx_char_uuid, sizeof(nus_rx_char_uuid));
+    if(authenticated) rx_char.security_permissions |= ATTR_PERMISSION_AUTHEN_WRITE;
     ble_gatt_characteristic_init(p->svc_handle, &rx_char, &p->rx);
 
     p->tx_value.len = NUS_TX_VALUE_MAX; // init asks the callback for max length
     BleGattCharacteristicParams tx_char = nus_tx_char;
     memcpy(tx_char.uuid.Char_UUID_128, nus_tx_char_uuid, sizeof(nus_tx_char_uuid));
     tx_char.data.callback.context = &p->tx_value;
+    if(authenticated) tx_char.security_permissions |= ATTR_PERMISSION_AUTHEN_READ;
     ble_gatt_characteristic_init(p->svc_handle, &tx_char, &p->tx);
     p->tx_value.len = 0;
 

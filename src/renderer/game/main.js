@@ -40,6 +40,7 @@ const engine = new GameEngine({
   onState: (state) => onState(state),
   onEffect: (effect) => {
     if (effect.type === 'arm') buzzers.arm();
+    if (effect.type === 'disarm') buzzers.disarm();
   },
 });
 

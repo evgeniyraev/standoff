@@ -25,7 +25,7 @@ export class GameEngine {
    * @param {object} opts
    * @param {() => object} opts.getConfig  current normalized config
    * @param {(state: object) => void} opts.onState  called after every change
-   * @param {(effect: {type: string}) => void} [opts.onEffect]  side effects, e.g. { type: 'arm' }
+   * @param {(effect: {type: string}) => void} [opts.onEffect]  side effects: { type: 'arm' } | { type: 'disarm' }
    */
   constructor({ getConfig, onState, onEffect = () => {}, clock = defaultClock, random = Math.random }) {
     this.getConfig = getConfig;
@@ -77,6 +77,9 @@ export class GameEngine {
   /** Back to the start screen (idle fallback, double tap, admin). */
   reset() {
     this.clearTimer();
+    // Leaving a question mid-round: switch the buttons off (before the start
+    // screen resumes PING).
+    if (this.state.screen === 'buzz') this.onEffect({ type: 'disarm' });
     this.set({ screen: 'start', scores: [0, 0], questionNumber: 0, question: null, winner: null, deadline: null });
   }
 
@@ -131,7 +134,10 @@ export class GameEngine {
       duration: cfg.game.buzzSeconds,
     });
     this.onEffect({ type: 'arm' });
-    this.after(cfg.game.buzzSeconds, () => this.showResult({ kind: 'nobuzz' }));
+    this.after(cfg.game.buzzSeconds, () => {
+      this.onEffect({ type: 'disarm' }); // time's up: buttons off until the next question
+      this.showResult({ kind: 'nobuzz' });
+    });
   }
 
   startAnswer(player, wrongSoFar) {

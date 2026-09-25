@@ -6,9 +6,9 @@ App(
     stack_size=4 * 1024,
     fap_category="Bluetooth",
     fap_description="Turns the Flipper into the BLE quiz-buzzer device (NUS peripheral): "
-    "advertises the NUS service, Just Works pairing, receives START/PING, sends BTN/STATE.",
+    "advertises the NUS service, Just Works or PIN pairing, receives START/PING, sends BTN/STATE.",
     fap_author="Evgeniy Raev",
-    fap_version="0.2",
+    fap_version="0.3",
     fap_icon="quiz_buzzer.png",
     sources=[
         "quiz_buzzer_app.c",

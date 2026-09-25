@@ -1,6 +1,7 @@
 // Buzzer device over Web Bluetooth. Protocol: see pc-app-ble-integration.md.
 //
 //   app → device  START           arm the buttons for one round
+//   app → device  STOP            disarm the buttons (time's up / left the question)
 //   app → device  PING            every 2 s while idle (LED "alive" blink)
 //   device → app  BTN:<id>:<seq>  first press of the round (id 1|2)
 //   device → app  STATE:<name>    device state change (informational)
@@ -254,6 +255,11 @@ export class Buzzers {
   arm() {
     this.setPinging(false);
     return this.send('START');
+  }
+
+  /** Turns both buttons off (round over without a buzz, or back to the start screen). */
+  disarm() {
+    return this.send('STOP');
   }
 
   /** PING only while the game is idle (device is waiting for a game start). */

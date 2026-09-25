@@ -5,8 +5,12 @@
  * pc-app-ble-integration.md) connects to it as the central. The Flipper's
  * Left/Right buttons are the two contestant buzzers.
  *
- *   PC -> Flipper (RX):  START (arm a round), PING (liveness -> LED flash)
+ *   PC -> Flipper (RX):  START (arm a round), STOP (disarm), PING (liveness -> LED flash)
  *   Flipper -> PC (TX):  BTN:<id>:<seq> (a player buzzed), STATE:<name>
+ *
+ * On start the user picks how the host pairs: Just Works for hosts without a
+ * display, or a PIN shown on the Flipper for hosts with one. After that the app
+ * runs the same either way.
  *
  * Controls: Left = Player 1, Right = Player 2, hold OK = forget bond, Back = exit.
  */
@@ -23,9 +27,10 @@
 
 #define TAG "QuizBuzzer"
 
-// Private bond store, so pairing the quiz PC leaves the Flipper's normal
-// (phone) pairing alone.
+// Private bond stores, so pairing the quiz PC leaves the Flipper's normal
+// (phone) pairing alone. One per pairing mode, matching the per-mode address.
 #define QUIZ_KEYS_PATH APP_DATA_PATH(".bt_keys")
+#define QUIZ_KEYS_PATH_PIN APP_DATA_PATH(".bt_keys_pin")
 
 // After a buzz, show the winner this long before returning to waiting.
 #define ROUND_COOLDOWN_MS 3000
@@ -75,6 +80,9 @@ typedef struct {
     FuriTimer* cooldown_timer;
     FuriTimer* tick_timer;
     NotificationApp* notifications;
+
+    bool picking; // start-up pairing mode menu is shown
+    NusProfileParams profile_params; // .pairing is the menu selection
 
     Bt* bt;
     FuriHalBleProfileBase* profile;
@@ -165,11 +173,46 @@ static void outbox_pump(QuizBuzzerApp* app) {
 // ---------------------------------------------------------------------------
 // GUI
 // ---------------------------------------------------------------------------
+static const char* pairing_label(NusPairingMode mode) {
+    return mode == NusPairingDisplay ? "Host with display" : "Host without display";
+}
+
+static void quiz_draw_picker(Canvas* canvas, QuizBuzzerApp* app) {
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 2, 11, "Pair with...");
+    canvas_draw_line(canvas, 0, 14, 128, 14);
+
+    const NusPairingMode modes[] = {NusPairingNoDisplay, NusPairingDisplay};
+    for(size_t i = 0; i < COUNT_OF(modes); i++) {
+        const int32_t y = 20 + i * 14;
+        if(app->profile_params.pairing == modes[i]) {
+            canvas_draw_rbox(canvas, 0, y, 128, 13, 2);
+            canvas_set_color(canvas, ColorWhite);
+        }
+        canvas_draw_str(canvas, 4, y + 10, pairing_label(modes[i]));
+        canvas_set_color(canvas, ColorBlack);
+    }
+
+    canvas_set_font(canvas, FontSecondary);
+    canvas_draw_str(
+        canvas,
+        2,
+        62,
+        app->profile_params.pairing == NusPairingDisplay ? "PIN shown on Flipper" :
+                                                           "Just Works, no PIN");
+}
+
 static void quiz_draw(Canvas* canvas, void* ctx) {
     QuizBuzzerApp* app = ctx;
     furi_mutex_acquire(app->mutex, FuriWaitForever);
 
     canvas_clear(canvas);
+    if(app->picking) {
+        quiz_draw_picker(canvas, app);
+        furi_mutex_release(app->mutex);
+        return;
+    }
+
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 11, "Quiz Buzzer");
     canvas_set_font(canvas, FontSecondary);
@@ -206,6 +249,12 @@ static void quiz_draw(Canvas* canvas, void* ctx) {
         canvas_draw_str(canvas, 2, 38, line);
         break;
     }
+
+    canvas_draw_str(
+        canvas,
+        2,
+        50,
+        app->profile_params.pairing == NusPairingDisplay ? "Pairing: PIN" : "Pairing: Just Works");
 
     canvas_draw_str(canvas, 2, 62, "<P1  P2>  hold OK:unpair");
     furi_mutex_release(app->mutex);
@@ -285,6 +334,13 @@ static void on_command(QuizBuzzerApp* app, NusCommand cmd) {
         app->winner = 0;
         queue_state(app, NUS_STATE_ARMED);
         notification_message(app->notifications, &sequence_single_vibro);
+    } else if(cmd == NusCmdStop) {
+        // Time ran out on the PC: buttons off. A result already recorded
+        // (PhaseResolved) stays queued and finishes its cool-down.
+        FURI_LOG_I(TAG, "STOP");
+        if(app->phase != PhaseArmed) return;
+        app->phase = PhaseWaiting;
+        queue_state(app, NUS_STATE_WAITING);
     } else if(cmd == NusCmdPing && app->phase == PhaseWaiting) {
         // §7: flash only while waiting for game start.
         notification_message(app->notifications, &sequence_ping);
@@ -336,9 +392,11 @@ static bool quiz_bt_start(QuizBuzzerApp* app) {
     app->bt = furi_record_open(RECORD_BT);
     bt_disconnect(app->bt);
     furi_delay_ms(200);
-    bt_keys_storage_set_storage_path(app->bt, QUIZ_KEYS_PATH);
+    bt_keys_storage_set_storage_path(
+        app->bt,
+        app->profile_params.pairing == NusPairingDisplay ? QUIZ_KEYS_PATH_PIN : QUIZ_KEYS_PATH);
 
-    app->profile = bt_profile_start(app->bt, ble_profile_nus, NULL);
+    app->profile = bt_profile_start(app->bt, ble_profile_nus, &app->profile_params);
     if(!app->profile) {
         FURI_LOG_E(TAG, "failed to start NUS profile");
         bt_keys_storage_set_default_path(app->bt);
@@ -366,6 +424,41 @@ static void quiz_bt_stop(QuizBuzzerApp* app) {
 }
 
 // ---------------------------------------------------------------------------
+// Start-up pairing mode menu. Returns false if the user backed out.
+// ---------------------------------------------------------------------------
+static bool quiz_pick_pairing(QuizBuzzerApp* app) {
+    AppEvent e;
+    while(true) {
+        if(furi_message_queue_get(app->queue, &e, FuriWaitForever) != FuriStatusOk) continue;
+        if(e.type != EvtInput) continue;
+        if(e.input.type != InputTypeShort) continue;
+
+        switch(e.input.key) {
+        case InputKeyUp:
+        case InputKeyDown:
+            furi_mutex_acquire(app->mutex, FuriWaitForever);
+            app->profile_params.pairing = app->profile_params.pairing == NusPairingDisplay ?
+                                              NusPairingNoDisplay :
+                                              NusPairingDisplay;
+            furi_mutex_release(app->mutex);
+            view_port_update(app->view_port);
+            break;
+        case InputKeyOk:
+            furi_mutex_acquire(app->mutex, FuriWaitForever);
+            app->picking = false;
+            furi_mutex_release(app->mutex);
+            view_port_update(app->view_port);
+            FURI_LOG_I(TAG, "pairing: %s", pairing_label(app->profile_params.pairing));
+            return true;
+        case InputKeyBack:
+            return false;
+        default:
+            break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 int32_t quiz_buzzer_app(void* p) {
@@ -379,6 +472,8 @@ int32_t quiz_buzzer_app(void* p) {
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
     app->bt_status = BtStatusUnavailable;
     app->phase = PhaseWaiting;
+    app->picking = true;
+    app->profile_params.pairing = NusPairingNoDisplay;
 
     app->view_port = view_port_alloc();
     view_port_draw_callback_set(app->view_port, quiz_draw, app);
@@ -386,11 +481,14 @@ int32_t quiz_buzzer_app(void* p) {
     app->gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
 
-    bool running = quiz_bt_start(app);
-    if(!running) {
-        app->bt_status = BtStatusOff;
-        view_port_update(app->view_port);
-        furi_delay_ms(2000);
+    bool running = quiz_pick_pairing(app);
+    if(running) {
+        running = quiz_bt_start(app);
+        if(!running) {
+            app->bt_status = BtStatusOff;
+            view_port_update(app->view_port);
+            furi_delay_ms(2000);
+        }
     }
     furi_timer_start(app->tick_timer, furi_ms_to_ticks(TICK_MS));
 

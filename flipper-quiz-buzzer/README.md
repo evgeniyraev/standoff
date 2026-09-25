@@ -6,6 +6,20 @@ quiz-buzzer device, implementing the integration described in
 "PC app" in that document: the Flipper scans for the device, pairs, keeps a
 persistent link, sends `START`/`PING`, and displays incoming `BTN` events.
 
+## Pairing mode
+
+On start the app asks how the host will pair (Up/Down to choose, OK to
+confirm, Back to exit):
+
+| Choice | Pairing | Use for |
+|---|---|---|
+| Host without display | Just Works (encryption only) | The PC app, which accepts pairing in code |
+| Host with display | PIN: the Flipper shows a 6-digit code to type or confirm on the host; links must be authenticated (MITM) | Phones / PCs pairing through the OS dialog |
+
+Each mode uses its own BLE address and its own bond store, so a host treats
+them as two different devices and a Just Works bond is never reused for PIN
+mode. After pairing, the app behaves the same in both modes.
+
 ## Controls
 
 | Key  | Action                                             |

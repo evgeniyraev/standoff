@@ -4,7 +4,7 @@
  * The Flipper plays the quiz-buzzer *device* (BLE peripheral, NUS server). The
  * PC connects to it. Directions therefore mirror pc-app-ble-integration.md §7:
  *
- *   RX (PC -> device, we receive):   START | PING
+ *   RX (PC -> device, we receive):   START | STOP | PING
  *   TX (device -> PC, we send):      BTN:<id>:<seq> | STATE:<name>
  *
  * All messages are short ASCII, one message per GATT write / indication, no
@@ -26,6 +26,7 @@
 typedef enum {
     NusCmdUnknown = 0,
     NusCmdStart, // START — begin a round
+    NusCmdStop, // STOP — disarm; round ended without a press
     NusCmdPing, // PING — liveness while waiting-for-game-start
 } NusCommand;
 
