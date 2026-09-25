@@ -15,6 +15,7 @@ const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // indications
 const PING_MS = 2000;
 const RESCAN_MS = 5000;
 const MAX_RECONNECTS = 5;
+const MAX_WRITE_FAILURES = 3; // consecutive failed writes → drop the link and reconnect
 const LOG_SIZE = 50; // entries kept in status.ble.log (shown in Settings → System)
 
 const encoder = new TextEncoder();
@@ -31,6 +32,10 @@ export class Buzzers {
     this.failures = 0;
     this.retryTimer = null;
     this.pingTimer = null;
+    this.writeFailures = 0;
+    // Chromium hands back the same device/characteristic objects across scans
+    // and reconnects; listen on each only once or every event fires N times.
+    this.hooked = new WeakSet();
     this.status = { state: 'idle', device: null, error: null, deviceState: null, log: [] };
     this.queue = Promise.resolve(); // GATT writes must not overlap
     window.__standoffBleScan = () => this.scan();
@@ -75,9 +80,12 @@ export class Buzzers {
     try {
       const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [NUS_SERVICE] }] });
       this.log(`Found device "${device.name ?? '(no name)'}" id=${device.id}`);
-      if (this.device !== device) {
-        this.device = device;
-        device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+      this.device = device;
+      if (!this.hooked.has(device)) {
+        this.hooked.add(device);
+        device.addEventListener('gattserverdisconnected', () => {
+          if (this.device === device) this.onDisconnected();
+        });
       }
       this.failures = 0;
       await this.connect();
@@ -108,9 +116,13 @@ export class Buzzers {
       this.log(`RX/TX found (TX props: ${props.join(', ') || 'none'}); subscribing (may trigger pairing)`);
       // Re-subscribe on every connection: CCCD state is not guaranteed to survive.
       step = 'subscribe TX (encrypted — pairing)';
-      tx.addEventListener('characteristicvaluechanged', (e) => this.onMessage(decoder.decode(e.target.value)));
+      if (!this.hooked.has(tx)) {
+        this.hooked.add(tx);
+        tx.addEventListener('characteristicvaluechanged', (e) => this.onMessage(decoder.decode(e.target.value)));
+      }
       await tx.startNotifications();
       this.failures = 0;
+      this.writeFailures = 0;
       this.log('Subscribed to TX — connected and ready');
       this.setStatus({ state: 'connected', error: null });
     } catch (err) {
@@ -147,8 +159,10 @@ export class Buzzers {
   reconnect() {
     this.log('Manual reconnect requested');
     this.failures = 0;
-    this.device?.gatt?.disconnect();
-    this.device = null;
+    const device = this.device;
+    this.device = null; // before disconnect, so its event doesn't schedule a reconnect too
+    this.rx = null;
+    device?.gatt?.disconnect();
     this.requestScan();
   }
 
@@ -176,13 +190,29 @@ export class Buzzers {
       }
       try {
         await this.rx.writeValueWithResponse(encoder.encode(command));
+        this.writeFailures = 0;
         if (command !== 'PING') this.log(`→ ${command}`); // PING every 2 s would flood the log
       } catch (err) {
         this.log(`→ ${command} failed: ${err.name}: ${err.message}`, 'error');
         this.setStatus({ error: `${command} failed: ${err.message}` });
+        this.onWriteFailed();
       }
     });
     return this.queue;
+  }
+
+  // RX needs an encrypted link, so the first write triggers OS pairing (see
+  // integration guide §3). Writes that keep failing mean pairing failed or is
+  // stuck, or the bonds on the two sides disagree. Dropping the link cancels
+  // the pending pair; the reconnect starts it over.
+  onWriteFailed() {
+    this.writeFailures += 1;
+    if (this.writeFailures < MAX_WRITE_FAILURES || !this.device) return;
+    this.writeFailures = 0;
+    this.log(`${MAX_WRITE_FAILURES} writes failed in a row — pairing failed or bond mismatch; dropping link to retry`, 'error');
+    this.rx = null;
+    if (this.device.gatt.connected) this.device.gatt.disconnect(); // → gattserverdisconnected → onDisconnected
+    else this.onDisconnected();
   }
 
   /** Arms both buttons for a round. */

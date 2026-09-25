@@ -26,7 +26,7 @@ export const CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
 export const DEFAULT_CONFIG = {
   schemaVersion: CONFIG_SCHEMA_VERSION,
   game: {
-    pointsToWin: 2,
+    pointsToWin: 3,
     buzzSeconds: 10, // time for someone to press a buzzer
     answerSeconds: 10, // time for the buzzing player to tap an answer
     resultSeconds: 5, // "+1 CORRECT! Next question in 5…"

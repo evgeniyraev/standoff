@@ -47,8 +47,8 @@ test('countdown then first question arms the buzzers', () => {
   assert.deepEqual(effects, ['arm']);
 });
 
-test('correct answer scores and first to 2 wins', () => {
-  const { engine, advance, correct } = setup();
+test('correct answer scores and first to pointsToWin wins', () => {
+  const { engine, advance, correct } = setup({ pointsToWin: 2 });
   engine.ready();
   advance(3);
   engine.buzz(2);

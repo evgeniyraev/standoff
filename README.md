@@ -1,6 +1,6 @@
 # Standoff
 
-A two-player buzzer quiz for a portrait touchscreen kiosk on Windows. Players race to press their Bluetooth buzzer, answer on the touchscreen, and the first to 2 points wins.
+A two-player buzzer quiz for a portrait touchscreen kiosk on Windows. Players race to press their Bluetooth buzzer, answer on the touchscreen, and the first to 3 points wins.
 
 - **Kiosk app:** Electron, fullscreen, starts with Windows, auto-updates from GitHub Releases.
 - **Settings:** press Ctrl + `,`, or hold the hidden corner button for 10 s. Double-tapping the hidden button returns to the start screen.

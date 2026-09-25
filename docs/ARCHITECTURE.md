@@ -156,7 +156,7 @@ stateDiagram-v2
 | Answering | Tap A–D within the time limit. | `game.answerSeconds` (10) |
 | Wrong answer or timeout | The other player gets one chance with a fresh timer, without buzzing. After that the question closes, the correct answer is revealed, and the next question starts. | `game.stealOnWrong`, `game.handoverSeconds` |
 | Nobody buzzes | Show the correct answer, then the next question. | — |
-| Winning | First to `pointsToWin`. | `game.pointsToWin` (2) |
+| Winning | First to `pointsToWin`. | `game.pointsToWin` (3) |
 | Question order | Random with no repeats; the deck reshuffles when it runs out, and never repeats the last question straight away. | — |
 | "01 OF 05" | "OF NN" is shown while the question number ≤ `displayTotal`, then hidden ("06", "07"…). While answering, the label shows "PLAYER N" instead, as in the concept. | `game.displayTotal` (5) |
 | Colours | Question N uses `accentOrder[(N−1) % length]`: yellow, green, red, purple, blue, then repeat. | `theme.accentOrder` |

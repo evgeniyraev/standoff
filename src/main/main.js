@@ -16,6 +16,12 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
+// The buzzer uses Just Works pairing, which Windows reports as ConfirmOnly.
+// Chromium only forwards that to our pairing handler (bluetooth.js) with this
+// feature on; without it the OS pair request is dropped unanswered, stays
+// pending, and every encrypted write fails with "Connection already in progress".
+app.commandLine.appendSwitch('enable-features', 'WebBluetoothConfirmPairingSupport');
+
 let store;
 let gameWin = null;
 let settingsWin = null;

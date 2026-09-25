@@ -24,12 +24,15 @@ export function setupBluetooth(win) {
   ses.setPermissionCheckHandler((_wc, permission) => permission === 'bluetooth' || permission === 'fullscreen');
   ses.setDevicePermissionHandler((details) => details.deviceType === 'bluetooth');
 
-  // Windows / Linux only. Just Works → "confirm"; accept everything that does
-  // not need a user-entered PIN.
+  // Windows / Linux only. Just Works → "confirm" (needs the
+  // WebBluetoothConfirmPairingSupport feature, enabled in main.js). Happens once
+  // per PC; the OS keeps the bond afterwards. Accept everything that does not
+  // need a user-entered PIN.
   ses.setBluetoothPairingHandler?.((details, callback) => {
-    log(`Pairing request: kind=${details.pairingKind} device=${details.deviceId}`);
-    if (details.pairingKind === 'providePin') callback({ confirmed: false });
-    else callback({ confirmed: true });
+    const accept = details.pairingKind !== 'providePin';
+    log(`Pairing request: kind=${details.pairingKind} device=${details.deviceId} → ${accept ? 'accepted' : 'rejected (PIN not supported)'}`,
+      accept ? 'info' : 'error');
+    callback({ confirmed: accept });
   });
 
   // Fired repeatedly while Chromium scans; the list is already filtered to

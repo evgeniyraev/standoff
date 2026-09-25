@@ -54,12 +54,12 @@ function scoreboard(state, cfg, { ringColor, ringLabel, activePlayer }) {
 function startScreen(state, cfg, logo) {
   const c = cfg.theme.colors;
   const rules = [
-    [c.blue, `You have ${cfg.game.buzzSeconds} seconds to press your red button.`],
+    [c.blue, `You have ${cfg.game.buzzSeconds} seconds to press your blue button.`],
     [c.green, 'The first player to press gets to answer.'],
     [c.red, 'Tap A, B, C or D on the screen.'],
     [c.yellow, 'A correct answer wins 1 point.'],
-    ...(cfg.game.stealOnWrong ? [[c.purple, 'If you are wrong, your opponent gets a chance.']] : []),
-    [c.sky, `First player to ${cfg.game.pointsToWin} point${cfg.game.pointsToWin === 1 ? '' : 's'} wins!`],
+    ...(cfg.game.stealOnWrong ? [[c.purple, 'If your answer is incorrect, your opponent gets a chance.']] : []),
+    [c.sky, `First player to score ${cfg.game.pointsToWin} point${cfg.game.pointsToWin === 1 ? '' : 's'} wins!`],
   ];
   return `
     <section class="screen start">
@@ -133,7 +133,7 @@ function buzzScreen(state, cfg) {
       <div class="content">
         ${questionBlock(state, cfg, accent, sub)}
         ${answersGrid(state, accent, { interactive: false })}
-        <p class="hint">PRESS YOUR RED BUTTON TO ANSWER</p>
+        <p class="hint">PRESS YOUR BLUE BUTTON TO ANSWER</p>
       </div>
     </section>`;
 }
